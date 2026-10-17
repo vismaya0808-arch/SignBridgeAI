@@ -1,0 +1,201 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>SignBridge AI</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #eef3f8;
+            margin: 0;
+            padding: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #123456;
+        }
+
+        .panel {
+            background: white;
+            max-width: 750px;
+            margin: 25px auto;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px #ccd5df;
+        }
+
+        button {
+            background: #123456;
+            color: white;
+            padding: 14px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 17px;
+        }
+
+        button:hover {
+            background: #245578;
+        }
+
+        video {
+            width: 100%;
+            max-width: 500px;
+            margin-top: 15px;
+            border-radius: 10px;
+        }
+
+        #status {
+            color: #555;
+            margin: 15px;
+        }
+
+        #recognized {
+            font-size: 22px;
+            color: #123456;
+        }
+
+        #message {
+            color: #123456;
+            font-size: 18px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>SignBridge AI</h1>
+    <p>Real-Time Classroom Speech to Indian Sign Language</p>
+
+    <div class="panel">
+        <h2>Teacher's Speech</h2>
+
+        <button onclick="startListening()">
+            Start Listening
+        </button>
+
+        <p id="status">Click the button and speak.</p>
+
+        <p id="recognized"></p>
+    </div>
+
+    <div class="panel">
+        <h2>Sign Language Display</h2>
+
+        <p id="message">
+            Signing will appear here.
+        </p>
+
+        <video id="signVideo" controls style="display:none;">
+            Your browser does not support video.
+        </video>
+    </div>
+
+<script>
+
+    const SpeechRecognition =
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition;
+
+    async function startListening() {
+
+        if (!SpeechRecognition) {
+            document.getElementById("status").innerText =
+                "Speech recognition is not supported in this browser.";
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+
+        recognition.lang = "en-IN";
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        document.getElementById("status").innerText =
+            "Listening to teacher...";
+
+        recognition.onresult = async function(event) {
+
+            const text =
+                event.results[0][0].transcript;
+
+            document.getElementById("recognized").innerText =
+                "Recognised: " + text;
+
+            try {
+
+                const response = await fetch("/translate", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({text: text})
+                });
+
+                const result = await response.json();
+
+                const video = document.getElementById("signVideo");
+
+                if (result.supported) {
+
+                    document.getElementById("message").innerText =
+                        "Matched phrase: " + result.text;
+
+                    video.src = "/static/signs/" + result.video;
+                    video.style.display = "block";
+                    video.load();
+
+                    video.play().catch(() => {
+                        document.getElementById("status").innerText =
+                            "Sign matched. Click play to view the video.";
+                    });
+
+                    document.getElementById("status").innerText =
+                        "Translation available.";
+
+                } else {
+
+                    document.getElementById("message").innerText =
+                        "Sign translation not available for this phrase.";
+
+                    video.pause();
+                    video.removeAttribute("src");
+                    video.style.display = "none";
+                    video.load();
+
+                    document.getElementById("status").innerText =
+                        "Phrase not found in sign library.";
+
+                }
+
+            } catch (error) {
+
+                document.getElementById("status").innerText =
+                    "Could not connect to the translation server.";
+
+            }
+        };
+
+        recognition.onerror = function(event) {
+
+            document.getElementById("status").innerText =
+                "Speech error: " + event.error;
+
+        };
+
+        recognition.onend = function() {
+            // Recognition has stopped.
+        };
+
+        recognition.start();
+    }
+
+</script>
+
+</body>
+</html>
